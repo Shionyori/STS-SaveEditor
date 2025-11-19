@@ -1,6 +1,6 @@
 #include <iostream>
 #include <algorithm>
-#include "../codec.h"
+#include "codec.h"
 
 // 打印程序使用说明
 void print_usage() {
