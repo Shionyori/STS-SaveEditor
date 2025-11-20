@@ -10,8 +10,8 @@ target_include_directories(sts_codec PUBLIC
 
 # ---- CLI 程序 ----
 if(BUILD_CLI)
-    add_executable(sts-editor cli_main.cpp)
-    target_link_libraries(sts-editor PRIVATE sts_codec)
+    add_executable(STSSaveEditor cli_main.cpp)
+    target_link_libraries(STSSaveEditor PRIVATE sts_codec)
 
-    install(TARGETS sts-editor DESTINATION bin)
+    install(TARGETS STSSaveEditor DESTINATION bin)
 endif()

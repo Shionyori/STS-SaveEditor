@@ -1,0 +1,14 @@
+*{box-sizing:border-box;font-family:Segoe UI, Roboto, "Microsoft Yahei", sans-serif}
+body{background:#f6f8fa;color:#111;margin:0;padding:24px}
+main{max-width:900px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+h1{margin:0 0 18px;font-size:20px}
+.row{margin-bottom:12px}
+label{display:block;font-size:13px;color:#333}
+input[type=text]{width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px}
+.file > span{display:block;margin-bottom:6px}
+textarea{width:100%;min-height:360px;padding:12px;border:1px solid #e1e4ea;border-radius:6px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace}
+.buttons{display:flex;gap:8px}
+button{padding:8px 12px;border-radius:6px;border:0;background:#0366d6;color:#fff;cursor:pointer}
+button[disabled]{opacity:.5;cursor:default}
+#status{padding:8px;border-radius:6px;background:#f1f5f9;color:#333;font-size:13px}
+footer{margin-top:12px;color:#666}

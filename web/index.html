@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>STS Save Editor — Web UI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>STS Save Editor — Web UI</h1>
+
+    <div class="row">
+      <label class="file">
+        <span>选择保存/文件 (Base64 autosave 文件或 .txt)</span>
+        <input id="fileInput" type="file" accept="*/*">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>密钥 (默认值为 key)
+        <input id="keyInput" type="text" placeholder="输入密钥（必填）" />
+      </label>
+    </div>
+
+    <div class="row buttons">
+      <button id="decodeBtn">解码为 JSON</button>
+      <button id="encodeBtn">从 JSON 加密并下载</button>
+      <button id="downloadBtn" disabled>下载加密文件</button>
+    </div>
+
+    <div class="row">
+      <label>已解码的 JSON（可编辑）
+        <textarea id="jsonArea" placeholder="解码后会显示在这里，可以修改，然后点击“从 JSON 加密并下载"。" spellcheck="false"></textarea>
+      </label>
+    </div>
+
+    <div class="row">
+      <div id="status">状态：空闲</div>
+    </div>
+
+    <footer>
+      <small>实现：Base64 + XOR（与本地 C++ codec 行为一致）。</small>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
