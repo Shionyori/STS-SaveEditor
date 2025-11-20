@@ -1,16 +1,17 @@
 #pragma once
 #include <QMainWindow>
-
-QT_BEGIN_NAMESPACE
-namespace Ui { class MainWindow; }
-QT_END_NAMESPACE
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+    ~MainWindow() override;
 
 private slots:
     void onEncodeClicked();
@@ -19,5 +20,12 @@ private slots:
     void onSaveDst();
 
 private:
-    Ui::MainWindow *ui;
+    // UI widgets (replacing the generated Ui::MainWindow)
+    QLineEdit *keyEdit = nullptr;
+    QPlainTextEdit *srcEdit = nullptr;
+    QPlainTextEdit *dstEdit = nullptr;
+    QPushButton *openSrc = nullptr;
+    QPushButton *encodeBtn = nullptr;
+    QPushButton *decodeBtn = nullptr;
+    QPushButton *saveDst = nullptr;
 };
