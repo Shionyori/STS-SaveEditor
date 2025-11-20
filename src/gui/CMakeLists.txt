@@ -6,6 +6,21 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
+set(BUILD_QT ON CACHE BOOL "Build with Qt GUI")
+
+if(BUILD_QT)
+    # 1. 优先使用 QT_ROOT
+    if(DEFINED ENV{QT_ROOT} AND NOT CMAKE_PREFIX_PATH)
+        set(_qt_root $ENV{QT_ROOT})
+        foreach(sub lib/cmake lib cmake)
+            if(EXISTS "${_qt_root}/${sub}/Qt6")
+                list(PREPEND CMAKE_PREFIX_PATH "${_qt_root}/${sub}")
+                break()
+            endif()
+        endforeach()
+    endif()
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(STSSaveEditorGUI

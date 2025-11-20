@@ -20,7 +20,8 @@ private slots:
     void onSaveDst();
 
 private:
-    // UI widgets (replacing the generated Ui::MainWindow)
+    bool allowCodec = true; // 防止自动触发 encode/decode
+
     QLineEdit *keyEdit = nullptr;
     QPlainTextEdit *srcEdit = nullptr;
     QPlainTextEdit *dstEdit = nullptr;
