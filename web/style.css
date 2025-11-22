@@ -7,6 +7,9 @@ label{display:block;font-size:13px;color:#333}
 input[type=text]{width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px}
 .file > span{display:block;margin-bottom:6px}
 textarea{width:100%;min-height:360px;padding:12px;border:1px solid #e1e4ea;border-radius:6px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace}
+.CodeMirror { border: 1px solid #e1e4ea; border-radius:6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+.CodeMirror pre { font-family: inherit; font-size: 13px }
+.CodeMirror { min-height: 240px; max-height: 800px; }
 .buttons{display:flex;gap:8px}
 button{padding:8px 12px;border-radius:6px;border:0;background:#0366d6;color:#fff;cursor:pointer}
 button[disabled]{opacity:.5;cursor:default}

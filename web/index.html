@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>STS Save Editor — Web UI</title>
   <link rel="stylesheet" href="style.css">
+  <!-- CodeMirror 5 (for editing + JSON highlighting) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/eclipse.min.css">
 </head>
 <body>
   <main>
@@ -25,7 +28,7 @@
 
     <div class="row buttons">
       <button id="decodeBtn">解码为 JSON</button>
-      <button id="encodeBtn">从 JSON 加密并下载</button>
+      <button id="encodeBtn">从 JSON 加密</button>
       <button id="downloadBtn" disabled>下载加密文件</button>
     </div>
 
@@ -43,6 +46,10 @@
       <small>实现：Base64 + XOR（与本地 C++ codec 行为一致）。</small>
     </footer>
   </main>
+  <!-- CodeMirror core + javascript mode -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

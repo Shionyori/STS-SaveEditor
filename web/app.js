@@ -8,8 +8,45 @@ const downloadBtn = document.getElementById('downloadBtn');
 const jsonArea = document.getElementById('jsonArea');
 const status = document.getElementById('status');
 
+// CodeMirror editor instance (initialized when page scripts run)
+let cm = null;
+(function initEditor() {
+  if (typeof CodeMirror === 'undefined') return; // fallback: CodeMirror not loaded
+  cm = CodeMirror.fromTextArea(jsonArea, {
+    mode: { name: 'javascript', json: true },
+    lineNumbers: true,
+    lineWrapping: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    theme: 'eclipse',
+    indentUnit: 2,
+    tabSize: 2,
+  });
+
+  // adjust height to content (min/max bounds)
+  function adjustEditorHeight() {
+    try {
+      const info = cm.getScrollInfo();
+      // info.height is the total content height; clamp it
+      const h = Math.min(Math.max(info.height, 240), 800);
+      cm.setSize('100%', h + 'px');
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  cm.on('change', () => {
+    adjustEditorHeight();
+  });
+  // ensure reasonable initial size
+  setTimeout(adjustEditorHeight, 60);
+  // also adjust on window resize
+  window.addEventListener('resize', adjustEditorHeight);
+})();
+
 let lastEncodedString = null;
 let lastFileName = 'download.autosave';
+let lastHadBOM = false; // whether the decoded content originally had a UTF-8 BOM
 
 function setStatus(txt) { status.textContent = '状态：' + txt; }
 
@@ -50,13 +87,17 @@ function decodeBase64AutosaveToJsonText(b64text, key) {
   try {
     const bytes = base64ToUint8Array(b64text);
     const plain = xorTransform(bytes, key);
+    // detect UTF-8 BOM (0xEF 0xBB 0xBF)
+    const hadBOM = (plain.length >= 3 && plain[0] === 0xEF && plain[1] === 0xBB && plain[2] === 0xBF);
     const decoder = new TextDecoder('utf-8', { fatal: false });
-    const s = decoder.decode(plain);
+    const s = decoder.decode(hadBOM ? plain.subarray(3) : plain);
     // try to pretty-print JSON if possible
     try {
       const obj = JSON.parse(s);
+      lastHadBOM = hadBOM;
       return JSON.stringify(obj, null, 2);
     } catch (e) {
+      lastHadBOM = hadBOM;
       // not valid JSON, return raw string
       return s;
     }
@@ -69,7 +110,16 @@ function encodeJsonTextToBase64Autosave(jsonText, key) {
   // accept both raw JSON text or pre-encoded binary text
   const encoder = new TextEncoder();
   const bytes = encoder.encode(jsonText);
-  const xored = xorTransform(bytes, key);
+  // If decoded input originally had a BOM, restore it before XOR so output matches CLI behavior
+  let plainBytes;
+  if (lastHadBOM) {
+    plainBytes = new Uint8Array(3 + bytes.length);
+    plainBytes[0] = 0xEF; plainBytes[1] = 0xBB; plainBytes[2] = 0xBF;
+    plainBytes.set(bytes, 3);
+  } else {
+    plainBytes = bytes;
+  }
+  const xored = xorTransform(plainBytes, key);
   const b64 = uint8ArrayToBase64(xored);
   return b64;
 }
@@ -114,7 +164,8 @@ decodeBtn.addEventListener('click', async () => {
     }
 
     const decoded = decodeBase64AutosaveToJsonText(b64text, key);
-    jsonArea.value = decoded;
+    if (cm) cm.setValue(decoded);
+    else jsonArea.value = decoded;
     lastEncodedString = null;
     lastFileName = file.name || lastFileName;
     setStatus('解码成功，可编辑 JSON。');
@@ -130,7 +181,7 @@ encodeBtn.addEventListener('click', () => {
     setStatus('请输入密钥');
     return;
   }
-  const text = jsonArea.value;
+  const text = cm ? cm.getValue() : jsonArea.value;
   if (!text) {
     setStatus('JSON 为空');
     return;
@@ -148,7 +199,13 @@ encodeBtn.addEventListener('click', () => {
 downloadBtn.addEventListener('click', () => {
   if (!lastEncodedString) return;
   const blob = new Blob([lastEncodedString], { type: 'text/plain;charset=utf-8' });
-  const name = (lastFileName && lastFileName.length) ? (lastFileName + '.autosave') : 'download.autosave';
+  let name;
+  if (lastFileName && lastFileName.length) {
+    const lower = lastFileName.toLowerCase();
+    name = lower.endsWith('.autosave') ? lastFileName : (lastFileName + '.autosave');
+  } else {
+    name = 'download.autosave';
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
