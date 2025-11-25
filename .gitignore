@@ -1,2 +1,25 @@
-build
-.vscode
+# Build directories
+build/
+target/
+src-tauri/target/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Rust
+Cargo.lock
+**/*.rs.bk
+
+# Node (if added later)
+node_modules/
+
+# Temporary files
+tmp_*.autosave
+*.log

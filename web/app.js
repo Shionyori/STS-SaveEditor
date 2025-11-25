@@ -1,5 +1,9 @@
 // app.js — 基于 Base64 + XOR 的编码/解码，与 C++ codec 对齐
 
+// Check for Tauri environment
+const isTauri = !!(window.__TAURI__);
+const invoke = isTauri ? window.__TAURI__.tauri.invoke : null;
+
 const fileInput = document.getElementById('fileInput');
 const keyInput = document.getElementById('keyInput');
 const decodeBtn = document.getElementById('decodeBtn');
@@ -83,7 +87,22 @@ function xorTransform(u8, keyStr) {
   return out;
 }
 
-function decodeBase64AutosaveToJsonText(b64text, key) {
+async function decodeBase64AutosaveToJsonText(b64text, key) {
+  if (isTauri) {
+    try {
+      const res = await invoke('decode_content', { content: b64text, key: key });
+      lastHadBOM = res.had_bom;
+      try {
+        const obj = JSON.parse(res.content);
+        return JSON.stringify(obj, null, 2);
+      } catch (e) {
+        return res.content;
+      }
+    } catch (e) {
+      throw new Error('Rust decode failed: ' + e);
+    }
+  }
+
   try {
     const bytes = base64ToUint8Array(b64text);
     const plain = xorTransform(bytes, key);
@@ -106,7 +125,15 @@ function decodeBase64AutosaveToJsonText(b64text, key) {
   }
 }
 
-function encodeJsonTextToBase64Autosave(jsonText, key) {
+async function encodeJsonTextToBase64Autosave(jsonText, key) {
+  if (isTauri) {
+    try {
+      return await invoke('encode_content', { content: jsonText, key: key, addBom: lastHadBOM });
+    } catch (e) {
+      throw new Error('Rust encode failed: ' + e);
+    }
+  }
+
   // accept both raw JSON text or pre-encoded binary text
   const encoder = new TextEncoder();
   const bytes = encoder.encode(jsonText);
@@ -163,7 +190,7 @@ decodeBtn.addEventListener('click', async () => {
       b64text = uint8ArrayToBase64(u8);
     }
 
-    const decoded = decodeBase64AutosaveToJsonText(b64text, key);
+    const decoded = await decodeBase64AutosaveToJsonText(b64text, key);
     if (cm) cm.setValue(decoded);
     else jsonArea.value = decoded;
     lastEncodedString = null;
@@ -175,7 +202,7 @@ decodeBtn.addEventListener('click', async () => {
   }
 });
 
-encodeBtn.addEventListener('click', () => {
+encodeBtn.addEventListener('click', async () => {
   const key = keyInput.value || '';
   if (!key) {
     setStatus('请输入密钥');
@@ -187,7 +214,7 @@ encodeBtn.addEventListener('click', () => {
     return;
   }
   try {
-    const b64 = encodeJsonTextToBase64Autosave(text, key);
+    const b64 = await encodeJsonTextToBase64Autosave(text, key);
     lastEncodedString = b64;
     downloadBtn.disabled = false;
     setStatus('加密完成，点击“下载加密文件”。');
