@@ -2,7 +2,7 @@
 
 use tauri::command;
 use base64::{Engine as _, engine::general_purpose};
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 
 fn xor_transform(data: &[u8], key: &str) -> Vec<u8> {
     if key.is_empty() {

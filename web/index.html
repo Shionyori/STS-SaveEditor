@@ -4,10 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>STS Save Editor — Web UI</title>
-  <link rel="stylesheet" href="style.css">
   <!-- CodeMirror 5 (for editing + JSON highlighting) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/eclipse.min.css">
+  <link rel="stylesheet" href="lib/codemirror.min.css">
+  <link rel="stylesheet" href="lib/eclipse.min.css">
+  <link rel="stylesheet" href="lib/dialog.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main>
@@ -32,7 +33,7 @@
       <button id="downloadBtn" disabled>下载加密文件</button>
     </div>
 
-    <div class="row">
+    <div class="row editor-row">
       <label>已解码的 JSON（可编辑）
         <textarea id="jsonArea" placeholder="解码后会显示在这里，可以修改，然后点击“从 JSON 加密并下载"。" spellcheck="false"></textarea>
       </label>
@@ -47,9 +48,12 @@
     </footer>
   </main>
   <!-- CodeMirror core + javascript mode -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
+  <script src="lib/codemirror.min.js"></script>
+  <script src="lib/javascript.min.js"></script>
+  <script src="lib/closebrackets.min.js"></script>
+  <script src="lib/dialog.min.js"></script>
+  <script src="lib/searchcursor.min.js"></script>
+  <script src="lib/search.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

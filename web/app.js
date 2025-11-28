@@ -1,258 +1,273 @@
 // app.js — 基于 Base64 + XOR 的编码/解码，与 C++ codec 对齐
 
-// Check for Tauri environment
-const isTauri = !!(window.__TAURI__);
-const invoke = isTauri ? window.__TAURI__.tauri.invoke : null;
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM loaded');
+  
+  // Check for Tauri environment
+  const tauriObj = window.__TAURI__;
+  const invokeFn = tauriObj?.core?.invoke || tauriObj?.tauri?.invoke;
+  const isTauri = !!invokeFn;
+  const invoke = invokeFn;
 
-const fileInput = document.getElementById('fileInput');
-const keyInput = document.getElementById('keyInput');
-const decodeBtn = document.getElementById('decodeBtn');
-const encodeBtn = document.getElementById('encodeBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const jsonArea = document.getElementById('jsonArea');
-const status = document.getElementById('status');
+  const fileInput = document.getElementById('fileInput');
+  const keyInput = document.getElementById('keyInput');
+  const decodeBtn = document.getElementById('decodeBtn');
+  const encodeBtn = document.getElementById('encodeBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const jsonArea = document.getElementById('jsonArea');
+  const status = document.getElementById('status');
 
-// CodeMirror editor instance (initialized when page scripts run)
-let cm = null;
-(function initEditor() {
-  if (typeof CodeMirror === 'undefined') return; // fallback: CodeMirror not loaded
-  cm = CodeMirror.fromTextArea(jsonArea, {
-    mode: { name: 'javascript', json: true },
-    lineNumbers: true,
-    lineWrapping: true,
-    matchBrackets: true,
-    autoCloseBrackets: true,
-    theme: 'eclipse',
-    indentUnit: 2,
-    tabSize: 2,
-  });
+  // Status helper with visual feedback
+  function setStatus(txt, type = 'info') { 
+    status.textContent = '状态：' + txt; 
+    if (type === 'error') {
+      status.style.backgroundColor = '#ffebee';
+      status.style.color = '#c62828';
+    } else if (type === 'success') {
+      status.style.backgroundColor = '#e8f5e9';
+      status.style.color = '#2e7d32';
+    } else {
+      status.style.backgroundColor = '#f1f5f9';
+      status.style.color = '#333';
+    }
+    console.log('Status:', txt);
+  }
 
-  // adjust height to content (min/max bounds)
-  function adjustEditorHeight() {
+  // CodeMirror editor instance
+  let cm = null;
+  if (typeof CodeMirror !== 'undefined') {
     try {
-      const info = cm.getScrollInfo();
-      // info.height is the total content height; clamp it
-      const h = Math.min(Math.max(info.height, 240), 800);
-      cm.setSize('100%', h + 'px');
+      cm = CodeMirror.fromTextArea(jsonArea, {
+        mode: { name: 'javascript', json: true },
+        lineNumbers: true,
+        lineWrapping: true,
+        autoCloseBrackets: true,
+        theme: 'eclipse',
+        indentUnit: 2,
+        tabSize: 2,
+        extraKeys: {
+          "Ctrl-F": "findPersistent",
+          "Cmd-F": "findPersistent"
+        }
+      });
+      
+      // Set editor to fill the container (height defined in CSS)
+      cm.setSize('100%', '100%');
+      
     } catch (e) {
-      /* ignore */
+      console.error('CodeMirror init failed:', e);
+      setStatus('编辑器初始化失败: ' + e.message, 'error');
     }
   }
 
-  cm.on('change', () => {
-    adjustEditorHeight();
-  });
-  // ensure reasonable initial size
-  setTimeout(adjustEditorHeight, 60);
-  // also adjust on window resize
-  window.addEventListener('resize', adjustEditorHeight);
-})();
+  let lastEncodedString = null;
+  let lastFileName = 'download.autosave';
+  let lastHadBOM = false;
 
-let lastEncodedString = null;
-let lastFileName = 'download.autosave';
-let lastHadBOM = false; // whether the decoded content originally had a UTF-8 BOM
-
-function setStatus(txt) { status.textContent = '状态：' + txt; }
-
-// Base64 helpers using btoa/atob via binary string conversion
-function uint8ArrayToBase64(u8) {
-  let binary = '';
-  const chunk = 0x8000; // avoid call stack issues on large arrays
-  for (let i = 0; i < u8.length; i += chunk) {
-    const slice = u8.subarray(i, Math.min(i + chunk, u8.length));
-    binary += String.fromCharCode.apply(null, slice);
+  // ... (rest of the helper functions) ...
+  
+  // Base64 helpers
+  function uint8ArrayToBase64(u8) {
+    let binary = '';
+    const chunk = 0x8000; 
+    for (let i = 0; i < u8.length; i += chunk) {
+      const slice = u8.subarray(i, Math.min(i + chunk, u8.length));
+      binary += String.fromCharCode.apply(null, slice);
+    }
+    return btoa(binary);
   }
-  return btoa(binary);
-}
 
-function base64ToUint8Array(b64) {
-  // remove whitespace/newlines
-  b64 = b64.replace(/\s+/g, '');
-  const binary = atob(b64);
-  const len = binary.length;
-  const u8 = new Uint8Array(len);
-  for (let i = 0; i < len; i++) u8[i] = binary.charCodeAt(i);
-  return u8;
-}
-
-function xorTransform(u8, keyStr) {
-  if (!keyStr) return u8.slice();
-  const encoder = new TextEncoder();
-  const k = encoder.encode(keyStr);
-  if (k.length === 0) return u8.slice();
-  const out = new Uint8Array(u8.length);
-  for (let i = 0; i < u8.length; i++) {
-    out[i] = u8[i] ^ k[i % k.length];
+  function base64ToUint8Array(b64) {
+    b64 = b64.replace(/\s+/g, '');
+    const binary = atob(b64);
+    const len = binary.length;
+    const u8 = new Uint8Array(len);
+    for (let i = 0; i < len; i++) u8[i] = binary.charCodeAt(i);
+    return u8;
   }
-  return out;
-}
 
-async function decodeBase64AutosaveToJsonText(b64text, key) {
-  if (isTauri) {
-    try {
-      const res = await invoke('decode_content', { content: b64text, key: key });
-      lastHadBOM = res.had_bom;
+  function xorTransform(u8, keyStr) {
+    if (!keyStr) return u8.slice();
+    const encoder = new TextEncoder();
+    const k = encoder.encode(keyStr);
+    if (k.length === 0) return u8.slice();
+    const out = new Uint8Array(u8.length);
+    for (let i = 0; i < u8.length; i++) {
+      out[i] = u8[i] ^ k[i % k.length];
+    }
+    return out;
+  }
+
+  async function decodeBase64AutosaveToJsonText(b64text, key) {
+    if (isTauri) {
       try {
-        const obj = JSON.parse(res.content);
-        return JSON.stringify(obj, null, 2);
+        console.log('Invoking Rust decode_content...');
+        const res = await invoke('decode_content', { content: b64text, key: key });
+        console.log('Rust decode success');
+        lastHadBOM = res.had_bom;
+        try {
+          const obj = JSON.parse(res.content);
+          return JSON.stringify(obj, null, 2);
+        } catch (e) {
+          return res.content;
+        }
       } catch (e) {
-        return res.content;
+        console.error('Rust decode error:', e);
+        throw new Error('Rust decode failed: ' + e);
       }
-    } catch (e) {
-      throw new Error('Rust decode failed: ' + e);
     }
-  }
 
-  try {
+    // JS Fallback
     const bytes = base64ToUint8Array(b64text);
     const plain = xorTransform(bytes, key);
-    // detect UTF-8 BOM (0xEF 0xBB 0xBF)
     const hadBOM = (plain.length >= 3 && plain[0] === 0xEF && plain[1] === 0xBB && plain[2] === 0xBF);
     const decoder = new TextDecoder('utf-8', { fatal: false });
     const s = decoder.decode(hadBOM ? plain.subarray(3) : plain);
-    // try to pretty-print JSON if possible
     try {
       const obj = JSON.parse(s);
       lastHadBOM = hadBOM;
       return JSON.stringify(obj, null, 2);
     } catch (e) {
       lastHadBOM = hadBOM;
-      // not valid JSON, return raw string
       return s;
     }
-  } catch (e) {
-    throw new Error('解码失败: ' + e.message);
   }
-}
 
-async function encodeJsonTextToBase64Autosave(jsonText, key) {
-  if (isTauri) {
+  async function encodeJsonTextToBase64Autosave(jsonText, key) {
+    if (isTauri) {
+      try {
+        return await invoke('encode_content', { content: jsonText, key: key, addBom: lastHadBOM });
+      } catch (e) {
+        throw new Error('Rust encode failed: ' + e);
+      }
+    }
+    // JS Fallback
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(jsonText);
+    let plainBytes;
+    if (lastHadBOM) {
+      plainBytes = new Uint8Array(3 + bytes.length);
+      plainBytes[0] = 0xEF; plainBytes[1] = 0xBB; plainBytes[2] = 0xBF;
+      plainBytes.set(bytes, 3);
+    } else {
+      plainBytes = bytes;
+    }
+    const xored = xorTransform(plainBytes, key);
+    return uint8ArrayToBase64(xored);
+  }
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(new Error('读取文件失败'));
+      fr.readAsText(file);
+    });
+  }
+
+  // Event Listeners
+  decodeBtn.addEventListener('click', async () => {
+    console.log('Decode button clicked');
+    const file = fileInput.files[0];
+    const key = keyInput.value || '';
+    
+    if (!file) {
+      setStatus('请先选择文件！', 'error');
+      return;
+    }
+    if (!key) {
+      setStatus('请输入密钥！', 'error');
+      return;
+    }
+
+    setStatus('正在读取文件...');
     try {
-      return await invoke('encode_content', { content: jsonText, key: key, addBom: lastHadBOM });
+      const text = await readFileAsText(file);
+      let b64text = text.trim();
+      
+      if (!/^([A-Za-z0-9+/=\r\n]+)$/.test(b64text)) {
+        setStatus('检测到二进制文件，正在转换...');
+        const raw = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = () => reject(new Error('读取二进制文件失败'));
+          fr.readAsArrayBuffer(file);
+        });
+        const u8 = new Uint8Array(raw);
+        b64text = uint8ArrayToBase64(u8);
+      }
+
+      setStatus('正在解码...');
+      const decoded = await decodeBase64AutosaveToJsonText(b64text, key);
+      
+      if (cm) cm.setValue(decoded);
+      else jsonArea.value = decoded;
+      
+      lastEncodedString = null;
+      lastFileName = file.name || lastFileName;
+      setStatus('解码成功！（在编辑框中 Ctrl + F 可查找关键词）', 'success');
     } catch (e) {
-      throw new Error('Rust encode failed: ' + e);
+      setStatus('错误：' + e.message, 'error');
+      console.error(e);
     }
-  }
-
-  // accept both raw JSON text or pre-encoded binary text
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(jsonText);
-  // If decoded input originally had a BOM, restore it before XOR so output matches CLI behavior
-  let plainBytes;
-  if (lastHadBOM) {
-    plainBytes = new Uint8Array(3 + bytes.length);
-    plainBytes[0] = 0xEF; plainBytes[1] = 0xBB; plainBytes[2] = 0xBF;
-    plainBytes.set(bytes, 3);
-  } else {
-    plainBytes = bytes;
-  }
-  const xored = xorTransform(plainBytes, key);
-  const b64 = uint8ArrayToBase64(xored);
-  return b64;
-}
-
-// File handlers
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(fr.result);
-    fr.onerror = () => reject(new Error('读取文件失败'));
-    fr.readAsText(file);
   });
-}
 
-decodeBtn.addEventListener('click', async () => {
-  const file = fileInput.files[0];
-  const key = keyInput.value || '';
-  if (!file) {
-    setStatus('请选择文件');
-    return;
-  }
-  if (!key) {
-    setStatus('请输入密钥');
-    return;
-  }
-  setStatus('读取文件...');
-  try {
-    const text = await readFileAsText(file);
-    // If file looks like binary (has null bytes), try reading as ArrayBuffer and convert to base64
-    let b64text = text.trim();
-    // if the content looks not base64 (contains many non-base64 chars), try to read raw bytes
-    if (!/^([A-Za-z0-9+/=\r\n]+)$/.test(b64text)) {
-      // read as array buffer
-      const raw = await new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result);
-        fr.onerror = () => reject(new Error('读取二进制文件失败'));
-        fr.readAsArrayBuffer(file);
-      });
-      const u8 = new Uint8Array(raw);
-      b64text = uint8ArrayToBase64(u8);
+  encodeBtn.addEventListener('click', async () => {
+    console.log('Encode button clicked');
+    const key = keyInput.value || '';
+    if (!key) {
+      setStatus('请输入密钥', 'error');
+      return;
     }
+    const text = cm ? cm.getValue() : jsonArea.value;
+    if (!text) {
+      setStatus('内容为空', 'error');
+      return;
+    }
+    try {
+      setStatus('正在加密...');
+      const b64 = await encodeJsonTextToBase64Autosave(text, key);
+      lastEncodedString = b64;
+      downloadBtn.disabled = false;
+      setStatus('加密完成，请点击下载', 'success');
+    } catch (e) {
+      setStatus('加密错误：' + e.message, 'error');
+      alert('加密错误：' + e.message);
+    }
+  });
 
-    const decoded = await decodeBase64AutosaveToJsonText(b64text, key);
-    if (cm) cm.setValue(decoded);
-    else jsonArea.value = decoded;
-    lastEncodedString = null;
-    lastFileName = file.name || lastFileName;
-    setStatus('解码成功，可编辑 JSON。');
-  } catch (e) {
-    setStatus('错误：' + e.message);
-    console.error(e);
-  }
+  downloadBtn.addEventListener('click', () => {
+    if (!lastEncodedString) return;
+    const blob = new Blob([lastEncodedString], { type: 'text/plain;charset=utf-8' });
+    let name;
+    if (lastFileName && lastFileName.length) {
+      const lower = lastFileName.toLowerCase();
+      name = lower.endsWith('.autosave') ? lastFileName : (lastFileName + '.autosave');
+    } else {
+      name = 'download.autosave';
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setStatus('已下载：' + name + ' （位于系统默认下载路径）', 'success');
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) setStatus('已选择：' + fileInput.files[0].name);
+  });
+
+  // Global error handler
+  window.onerror = function(msg, url, line, col, error) {
+    const extra = !col ? '' : '\ncolumn: ' + col;
+    const err = 'Error: ' + msg + '\nurl: ' + url + '\nline: ' + line + extra;
+    console.error(err);
+    // alert(err); // Uncomment if desperate
+    return false;
+  };
+
 });
 
-encodeBtn.addEventListener('click', async () => {
-  const key = keyInput.value || '';
-  if (!key) {
-    setStatus('请输入密钥');
-    return;
-  }
-  const text = cm ? cm.getValue() : jsonArea.value;
-  if (!text) {
-    setStatus('JSON 为空');
-    return;
-  }
-  try {
-    const b64 = await encodeJsonTextToBase64Autosave(text, key);
-    lastEncodedString = b64;
-    downloadBtn.disabled = false;
-    setStatus('加密完成，点击“下载加密文件”。');
-  } catch (e) {
-    setStatus('错误：' + e.message);
-  }
-});
-
-downloadBtn.addEventListener('click', () => {
-  if (!lastEncodedString) return;
-  const blob = new Blob([lastEncodedString], { type: 'text/plain;charset=utf-8' });
-  let name;
-  if (lastFileName && lastFileName.length) {
-    const lower = lastFileName.toLowerCase();
-    name = lower.endsWith('.autosave') ? lastFileName : (lastFileName + '.autosave');
-  } else {
-    name = 'download.autosave';
-  }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setStatus('已生成下载：' + name);
-});
-
-// keyboard shortcuts: Ctrl+S to encode+download
-window.addEventListener('keydown', (ev) => {
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
-    ev.preventDefault();
-    encodeBtn.click();
-    setTimeout(() => downloadBtn.click(), 100);
-  }
-});
-
-// small helper to pretty-print status when file input changes
-fileInput.addEventListener('change', () => {
-  if (fileInput.files.length) setStatus('已选择：' + fileInput.files[0].name);
-  else setStatus('未选择文件');
-});
